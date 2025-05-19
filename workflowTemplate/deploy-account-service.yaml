@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: helm-deploy-service-template
+  namespace: kpack
+spec:
+  templates:
+    - name: helm-deploy-service
+      inputs:
+        parameters:
+          - name: release-name
+          - name: namespace
+          - name: chart-path
+          - name: values-path
+      script:
+        image: alpine/helm:3.12.3
+        command: [sh]
+        source: |          
+          echo "Starting Helm upgrade/install for release '{{inputs.parameters.release-name}}' in namespace '{{inputs.parameters.namespace}}'..."
+          echo "Chart path: {{inputs.parameters.chart-path}}"
+          echo "Values path: {{inputs.parameters.values-path}}"
+          
+          helm upgrade --install {{inputs.parameters.release-name}} {{inputs.parameters.chart-path}} --namespace {{inputs.parameters.namespace}} -f {{inputs.parameters.values-path}}
+
+          if [ $? -eq 0 ]; then
+            echo "Helm deployment of release '{{inputs.parameters.release-name}}' was successful!"
+          else
+            echo "Helm deployment of release '{{inputs.parameters.release-name}}' failed."
+            exit 1
+          fi
+        volumeMounts:
+          - name: workspace-pvc
+            mountPath: /workspace

@@ -1,0 +1,21 @@
+apiVersion: kpack.io/v1alpha2
+kind: Image
+metadata:
+  name: kpack-spring-image
+  namespace: ncc-dev
+spec:
+  tag: harbor.fintech23.xyz/core/spring-service:dev
+  serviceAccountName: kpack-service-account
+  builder:
+    name: kpack-builder
+    kind: Builder
+  cache:
+    volume:
+      size: "5Gi" 
+      storageClassName: "openebs-hostpath-home" 
+  source:
+    git:
+      url: https://github.com/Nazia-Karim-Khan/spring-boot-application.git
+      revision: main
+
+

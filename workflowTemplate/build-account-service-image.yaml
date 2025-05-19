@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: build-service-image-template
+  namespace: kpack
+spec:
+  templates:
+    - name: build-service-image
+      inputs:
+        parameters:
+          - name: service-name
+          - name: image-tag
+          - name: namespace
+          - name: git-url
+          - name: branch
+          - name: java-version
+      resource:
+        action: apply
+        manifest: |
+          apiVersion: kpack.io/v1alpha2
+          kind: Image
+          metadata:
+            name: {{inputs.parameters.service-name}}
+            namespace: {{inputs.parameters.namespace}}
+          spec:
+            tag: {registry_url}/{{inputs.parameters.namespace}}/{{inputs.parameters.service-name}}:{{inputs.parameters.image-tag}}
+            serviceAccountName: kpack-service-account
+            imageTaggingStrategy: None
+            builder:
+              name: default-builder
+              kind: ClusterBuilder
+            cache:
+              volume:
+                size: "5Gi"
+                storageClassName: "openebs-hostpath-home"
+            source:
+              git:
+                url: {{inputs.parameters.git-url}}
+                revision: {{inputs.parameters.branch}}
+            build:
+              env:
+                - name: BP_JVM_VERSION
+                  value: "{{inputs.parameters.java-version}}"

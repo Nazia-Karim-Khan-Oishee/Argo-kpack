@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: clone-deployment-repository-template
+  namespace: kpack
+spec:
+  templates:
+    - name: clone-deployment-repository
+      inputs:
+        parameters:
+          - name: deployment-repo
+          - name: branch
+          - name: deployment-git-url
+          - name: deployment-organization
+
+      script:
+        image: alpine/git:v2.47.1
+        command: [sh]
+        source: |
+          set -e
+          FULL_URL="${DEPLOYMENT_GIT_URL}/${DEPLOYMENT_ORG}/${DEPLOYMENT_REPO}.git"
+
+          AUTH_URL="http://${GIT_USERNAME}:${GIT_PASSWORD}@${FULL_URL#http://}"
+          
+          echo "Cloning from: ${AUTH_URL}"
+          
+          git clone --branch ${DEPLOYMENT_BRANCH} ${AUTH_URL} /workspace/${DEPLOYMENT_REPO} || {
+              echo "Failed to clone Git repository. Exiting.";
+              exit 1;
+          }
+        env:
+          - name: DEPLOYMENT_GIT_URL
+            value: "{{inputs.parameters.deployment-git-url}}"
+          - name: DEPLOYMENT_ORG
+            value: "{{inputs.parameters.deployment-organization}}"
+          - name: DEPLOYMENT_REPO
+            value: "{{inputs.parameters.deployment-repo}}"
+          - name: DEPLOYMENT_BRANCH
+            value: "{{inputs.parameters.branch}}"
+          - name: GIT_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: "gitea-secret"
+                key: username
+          - name: GIT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: "gitea-secret"
+                key: password
+        volumeMounts:
+          - name: workspace-pvc
+            mountPath: /workspace

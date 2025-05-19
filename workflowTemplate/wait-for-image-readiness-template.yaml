@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: wait-for-image-readiness-template
+  namespace: kpack
+spec:
+  templates:
+    - name: wait-for-service-image
+      inputs:
+        parameters:
+          - name: service-image-name
+          - name: namespace
+      script:
+        image: bitnami/kubectl:1.28
+        command: [sh]
+        source: |
+          echo "Waiting for image '{{inputs.parameters.service-image-name}}' in namespace '{{inputs.parameters.namespace}}' to be ready..."
+          kubectl wait --for=condition=Ready image/{{inputs.parameters.service-image-name}} --namespace {{inputs.parameters.namespace}} --timeout 30m
+          if [ $? -ne 0 ]; then
+            echo "Image '{{inputs.parameters.service-image-name}}' failed to become ready within the timeout period."
+            exit 1
+          fi
+          echo "Image '{{inputs.parameters.service-image-name}}' is ready!"

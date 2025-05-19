@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: wait-for-deployment-availability-template
+  namespace: kpack
+spec:
+  templates:
+    - name: wait-for-deployment-availability
+      inputs:
+        parameters:
+          - name: deployment-name
+          - name: namespace
+      script:
+        image: bitnami/kubectl:1.28
+        command: [sh]
+        source: |
+          echo "Waiting for deployment '{{inputs.parameters.deployment-name}}' in namespace '{{inputs.parameters.namespace}}' to be ready..."
+          kubectl wait --for=condition=Available --timeout=300s deployment/{{inputs.parameters.deployment-name}} --namespace {{inputs.parameters.namespace}}
+          if [ $? -ne 0 ]; then
+            echo "Deployment '{{inputs.parameters.deployment-name}}' failed to become ready within the timeout period."
+            exit 1
+          fi
+          echo "Deployment '{{inputs.parameters.deployment-name}}' is ready!"

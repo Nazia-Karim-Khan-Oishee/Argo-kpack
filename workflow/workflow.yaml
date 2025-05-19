@@ -1,0 +1,131 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: bs23-ib-rt-admin-service-workflow
+  namespace: ncc-dev
+spec:
+  serviceAccountName: kpack-service-account
+  entrypoint: workflow-steps 
+  volumeClaimTemplates:
+  - metadata:
+      name: workspace-pvc
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
+      storageClassName: openebs-hostpath-home
+  arguments:
+    parameters:
+      - name: namespace
+        value: ""
+      - name: image-tag
+        value: "dev"
+      - name: source-git-url
+        value: ""
+      - name: source-organization
+        value: ""
+      - name: source-repo
+        value: ""
+      - name: source-branch
+        value: ""
+      - name: deployment-git-url
+        value: ""
+      - name: deployment-organization
+        value: ""
+      - name: deployment-repo
+        value: ""
+      - name: deployment-branch
+        value: "main"
+      - name: chart-name
+        value: ""
+      - name: java-version
+        value: "17"
+
+
+
+        
+  templates:
+    - name: workflow-steps
+      steps:
+        - - name: build-image
+            template: build-image
+        - - name: deploy-service
+            template: deploy-service
+            
+    - name: build-image
+      steps:
+        - - name: build-service-image
+            templateRef:
+              name: build-service-image-template 
+              template: build-service-image  
+              clusterScope: true  
+            arguments:
+              parameters:
+                - name: service-name
+                  value: "{{workflow.parameters.source-repo}}"
+                - name: image-tag
+                  value: "{{workflow.parameters.image-tag}}"
+                - name: namespace
+                  value: "{{workflow.parameters.namespace}}"
+                - name: git-url
+                  value: "{{workflow.parameters.source-git-url}}/{{workflow.parameters.source-organization}}/{{workflow.parameters.source-repo}}.git"
+                - name: branch
+                  value: "{{workflow.parameters.source-branch}}"
+                - name: java-version
+                  value: "{{workflow.parameters.java-version}}" 
+        - - name: wait-for-image-readiness
+            templateRef: 
+              name: wait-for-image-readiness-template
+              template: wait-for-service-image
+              clusterScope: true  
+            arguments:
+              parameters:
+                - name: service-image-name
+                  value: "{{workflow.parameters.source-repo}}"
+                - name: namespace
+                  value: "{{workflow.parameters.namespace}}"
+
+    - name: deploy-service
+      steps:
+        - - name: clone-deployment-repository
+            templateRef: 
+              name: clone-deployment-repository-template
+              template: clone-deployment-repository
+              clusterScope: true  
+            arguments:
+              parameters:
+                - name: deployment-git-url
+                  value: "{{workflow.parameters.deployment-git-url}}"
+                - name: deployment-organization
+                  value: "{{workflow.parameters.deployment-organization}}"
+                - name: deployment-repo
+                  value: "{{workflow.parameters.deployment-repo}}"
+                - name: branch
+                  value: "{{workflow.parameters.deployment-branch}}"
+        - - name: helm-deploy
+            templateRef: 
+              name: helm-deploy-service-template
+              template: helm-deploy-service
+              clusterScope: true  
+            arguments:
+              parameters:
+                - name: release-name
+                  value: "{{workflow.parameters.source-repo}}"
+                - name: namespace
+                  value: "{{workflow.parameters.namespace}}"
+                - name: chart-path
+                  value: "/workspace/{{workflow.parameters.deployment-repo}}/{{workflow.parameters.chart-name}}"
+                - name: values-path
+                  value: "/workspace/{{workflow.parameters.deployment-repo}}/app-services/{{workflow.parameters.source-repo}}/values.yaml"
+        - - name: validate-successful-deployment
+            templateRef:
+              name: wait-for-deployment-availability-template
+              template: wait-for-deployment-availability
+              clusterScope: true  
+            arguments:
+              parameters:
+                - name: namespace
+                  value: "{{workflow.parameters.namespace}}"
+                - name: deployment-name
+                  value: "{{workflow.parameters.source-repo}}-deployment"
